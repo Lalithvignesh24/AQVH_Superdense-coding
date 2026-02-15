@@ -15,10 +15,9 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # --- IBM Quantum Config ---
 load_dotenv()
-TOKEN = os.getenv("IBM_TOKEN", "7B1W9SibP-nScrzEGHoR71c1uz5rrkIqsvFE550vJ8Dz")
+TOKEN = os.getenv("IBM_TOKEN")
 INSTANCE = os.getenv(
-    "IBM_INSTANCE",
-    "crn:v1:bluemix:public:quantum-computing:us-east:a/5cb92e0886274c41b9676a5d161f4e5a:77e08079-ee84-4c29-9038-d475116989e0::"
+    "IBM_INSTANCE"
 )
 
 if not TOKEN or not INSTANCE:
