@@ -1,154 +1,137 @@
-# application.py
-# ====================================================
-# Flask API for Superdense Coding of Latitude, Longitude, and Restricted Status
-# with real-time progress updates via SSE
-# ====================================================
-
-import time
-from flask import Flask, request, Response, jsonify
+import os
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+from flask_socketio import SocketIO
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
-from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
-import json
+from qiskit.providers.exceptions import QiskitBackendNotFoundError
+from dotenv import load_dotenv
 
-# -----------------------
-# Flask Setup
-# -----------------------
+# --- Flask & Socket.IO Setup ---
 app = Flask(__name__)
-CORS(app)  # allow frontend access
+CORS(app) # Keep CORS for the initial HTTP request from the frontend
+app.config['SECRET_KEY'] = 'your-very-secret-key!'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# -----------------------
-# Utility Functions
-# -----------------------
-def text_to_bits(text: str) -> str:
-    return ''.join(f"{b:08b}" for b in text.encode('utf-8'))
-
-def bits_to_text(bits: str) -> str:
-    bits_trimmed = bits[:(len(bits) // 8) * 8]
-    if not bits_trimmed:
-        return ""
-    bytes_list = [int(bits_trimmed[i:i+8], 2) for i in range(0, len(bits_trimmed), 8)]
-    return bytes(bytes_list).decode('utf-8', errors='replace')
-
-def sdc_circuit_for_2bits(msg2: str):
-    qr = QuantumRegister(2, 'q')
-    cr = ClassicalRegister(2, 'c')
-    qc = QuantumCircuit(qr, cr, name=f"SDC {msg2}")
-
-    # Entangle
-    qc.h(0)
-    qc.cx(0, 1)
-
-    # Alice encoding
-    if msg2 == '01':
-        qc.z(0)
-    elif msg2 == '10':
-        qc.x(0)
-    elif msg2 == '11':
-        qc.z(0)
-        qc.x(0)
-
-    # Bob decode
-    qc.cx(0, 1)
-    qc.h(0)
-    qc.measure(qr, cr)
-    return qc
-
-# -----------------------
-# IBM Quantum Service Setup
-# -----------------------
-IBM_API_TOKEN = "G8nlBsI-xAK0AFVXgQNRZ6QDFZM82y-pk9fsoxLCEhfC"  # replace with your IBM API token
-SERVICE_INSTANCE = None
-
-service = QiskitRuntimeService(
-    channel="ibm_cloud",
-    token=IBM_API_TOKEN,
-    instance=SERVICE_INSTANCE
+# --- IBM Quantum Config ---
+load_dotenv()
+TOKEN = os.getenv("IBM_TOKEN", "7B1W9SibP-nScrzEGHoR71c1uz5rrkIqsvFE550vJ8Dz")
+INSTANCE = os.getenv(
+    "IBM_INSTANCE",
+    "crn:v1:bluemix:public:quantum-computing:us-east:a/5cb92e0886274c41b9676a5d161f4e5a:77e08079-ee84-4c29-9038-d475116989e0::"
 )
 
-backend = service.least_busy(simulator=False, operational=True)
-pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
-sampler = Sampler(backend)
+if not TOKEN or not INSTANCE:
+    raise ValueError("Missing IBM credentials. Please set IBM_TOKEN and IBM_INSTANCE in .env")
 
-# -----------------------
-# SSE Helper
-# -----------------------
-def stream_sdc(message_text, blocks):
-    decoded_bits = ""
-    round_summaries = []
-    first_two_circuits = []
+print("🔗 Connecting to IBM Quantum...")
+service = QiskitRuntimeService(channel="ibm_quantum_platform", token=TOKEN, instance=INSTANCE)
 
-    for i, block in enumerate(blocks):
-        qc = sdc_circuit_for_2bits(block)
-        if i < 2:
-            first_two_circuits.append(str(qc.draw(output='text')))
+# --- FIX: Try to connect to 'ibm_brisbane', with a robust fallback ---
+try:
+    backend = service.backend("ibm_torino")
+    print("✅ Successfully connected to target backend: ibm_torino")
+except QiskitBackendNotFoundError:
+    print("\n⚠ WARNING: Backend 'ibm_torino' not found or you don't have access.")
+    print("   Falling back to the least busy available simulator to prevent crashing.\n")
+    backend = service.least_busy(simulator=True, operational=True)
 
-        isa_circ = pm.run(qc)
-        job = sampler.run([isa_circ], shots=1024)
-        res = job.result()
-        pub = res[0]
-        counts = getattr(pub.data, "c").get_counts()
-        measured = max(counts, key=counts.get)
+print(f"✅ Using backend: {backend.name}\n")
 
-        decoded_bits += measured
-        round_summary = {
-            "round": i + 1,
-            "sent": block,
-            "measured": measured,
-            "counts": counts
-        }
-        round_summaries.append(round_summary)
 
-        # Send progress update
-        progress_data = {
-            "round": i + 1,
-            "sent": block,
-            "measured": measured,
-            "counts": counts,
-            "message": f"Round {i+1}/{len(blocks)} completed"
-        }
-        yield f"data: {json.dumps(progress_data)}\n\n"
+# --- Helper: Build SDC circuit ---
+def build_sdc_circuit(bits: str, index: int) -> QuantumCircuit:
+    """Builds a full Superdense Coding circuit for a 2-bit chunk."""
+    alice_q = QuantumRegister(1, f"alice_q{index}")
+    bob_q = QuantumRegister(1, f"bob_q{index}")
+    classical_res = ClassicalRegister(2, f"result_c{index}")
+    qc = QuantumCircuit(alice_q, bob_q, classical_res)
 
-        time.sleep(0.1)
+    # Create Bell pair
+    qc.h(alice_q[0])
+    qc.cx(alice_q[0], bob_q[0])
 
-    # Final result
-    decoded_bits = decoded_bits[:len(text_to_bits(message_text))]
-    decrypted_text = bits_to_text(decoded_bits)
-    success = decrypted_text == message_text
+    # Alice encodes her 2-bit chunk
+    if bits[1] == "1": qc.x(alice_q[0])
+    if bits[0] == "1": qc.z(alice_q[0])
 
-    final_result = {
-        "original_text": message_text,
-        "decoded_text": decrypted_text,
-        "decoded_bits": decoded_bits,
-        "success": success,
-        "first_two_circuits": first_two_circuits,
-        "round_summaries": round_summaries,
-        "completed": True
-    }
-    yield f"data: {json.dumps(final_result)}\n\n"
+    # Bob decodes and measures
+    qc.cx(alice_q[0], bob_q[0])
+    qc.h(alice_q[0])
+    qc.measure(bob_q[0], classical_res[0])
+    qc.measure(alice_q[0], classical_res[1])
 
-# -----------------------
-# SSE Route (GET for EventSource)
-# -----------------------
-@app.route("/sdc/send-stream", methods=["GET"])
-def sdc_send_stream():
+    return qc
+
+# --- Helper: Convert signed integer to two's complement binary ---
+def int_to_twos_complement(n: int, bits: int) -> str:
+    """Converts a signed integer to a two's complement binary string."""
+    if n < 0:
+        n = (1 << bits) + n
+    return format(n, f"0{bits}b")
+
+# --- Main Flask Route to Send Data ---
+@app.route("/sdc/send", methods=["GET"])
+def send_sdc():
+    """Receives coordinate data, creates quantum jobs, and broadcasts their IDs."""
     try:
-        latitude = request.args.get("latitude", "33.89729")
-        longitude = request.args.get("longitude", "74.24314")
-        restricted_status = request.args.get("restricted_status", "0")
+        print("Received /sdc/send request...")
+        lat = float(request.args.get("latitude", "0.0"))
+        lon = float(request.args.get("longitude", "0.0"))
+        restricted_status = int(request.args.get("restricted_status", "0"))
 
-        message_text = f"{latitude},{longitude},{restricted_status}"
-        plaintext_bits = text_to_bits(message_text)
-        blocks = [plaintext_bits[i:i+2].ljust(2, '0') for i in range(0, len(plaintext_bits), 2)]
+        lat_int = int(round(lat * 1e3))
+        lon_int = int(round(lon * 1e3))
 
-        return Response(stream_sdc(message_text, blocks), mimetype="text/event-stream")
+        LAT_BITS, LON_BITS = 18, 19
+        lat_bin = int_to_twos_complement(lat_int, LAT_BITS)
+        lon_bin = int_to_twos_complement(lon_int, LON_BITS)
+        status_bin = format(restricted_status, "01b")
+
+        message = lat_bin + lon_bin + status_bin
+        chunks = [message[i:i+2] for i in range(0, len(message), 2)]
+
+        job_ids = []
+        sampler = Sampler(backend)
+
+        # Run each chunk as a separate job
+        for i, bits in enumerate(chunks):
+            qc = build_sdc_circuit(bits, i)
+            transpiled_qc = transpile(qc, backend=backend, optimization_level=1)
+            job = sampler.run([transpiled_qc], shots=1024)
+            job_ids.append(job.job_id())
+            print(f"✅ Submitted chunk {i+1}/{len(chunks)}: Job ID {job.job_id()}")
+
+        # Broadcast job IDs and metadata to all connected clients
+        socketio.emit("new_quantum_jobs", {"job_ids": job_ids, "lat_bits": LAT_BITS, "lon_bits": LON_BITS})
+        print("🔊 Broadcasted Job IDs via Socket.IO.")
+
+        return jsonify({
+            "message": "All jobs submitted successfully.",
+            "job_ids": job_ids
+        }), 200
 
     except Exception as e:
+        print(f"Error in /sdc/send: {e}")
         return jsonify({"error": str(e)}), 500
 
-# -----------------------
-# Run Flask
-# -----------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5003, debug=True)
+# --- Socket.IO Event Handlers ---
+@socketio.on('connect')
+def handle_connect():
+    print("✅ Client connected to Socket.IO")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("❌ Client disconnected")
+
+# --- Run the Flask-SocketIO server ---
+if __name__  == "__main__":
+    print("Starting Flask-SocketIO server on http://0.0.0.0:5006")
+    # socketio.run(app, host="0.0.0.0", port=5006, debug=True)
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=5006,
+        debug=False,        # ❗ REQUIRED
+        use_reloader=False # ❗ REQUIRED
+    )

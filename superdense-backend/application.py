@@ -1,17 +1,10 @@
-# application.py
-
-# ====================================================
-# Flask API for Satellite-to-Ground BB84 QKD + Superdense Coding
-# with real satellite data integration
-# ====================================================
-
 import io
 import random
 import base64
 import numpy as np
 import logging
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from datetime import datetime
 import pytz  # Added for timezone conversion
@@ -25,15 +18,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# --------------------------
-# Logging Configuration
-# --------------------------
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ====================================================
-# Helper Functions
-# ====================================================
 
 def fig_to_base64(fig):
     """Converts a Matplotlib figure to a base64 encoded string."""
@@ -44,6 +32,7 @@ def fig_to_base64(fig):
     plt.close(fig)
     return img_str
 
+
 def plot_qubit_bloch(state, qubit_index=0, title="Qubit Bloch Sphere", description=""):
     # Reduce the state to the qubit of interest (if multi-qubit state)
     reduced_dm = partial_trace(state, [i for i in range(state.num_qubits) if i != qubit_index])
@@ -53,27 +42,19 @@ def plot_qubit_bloch(state, qubit_index=0, title="Qubit Bloch Sphere", descripti
     Y = np.array([[0, -1j], [1j, 0]])
     Z = np.array([[1, 0], [0, -1]])
     
-    # Compute the expectation values for X, Y, and Z for the given qubit
     bloch_vector = [
         np.real(np.trace(reduced_dm.data @ X)),  # X-component
         np.real(np.trace(reduced_dm.data @ Y)),  # Y-component
         np.real(np.trace(reduced_dm.data @ Z)),  # Z-component
     ]
     
-    # Create a Bloch sphere visualization
     fig = plt.figure(figsize=(4, 4))
     ax = fig.add_subplot(111, projection='3d')
-    
-    # Plot Bloch vector on the Bloch sphere
     b = Bloch(axes=ax)
     b.add_vectors(bloch_vector)
-    
     b.title = title
     fig.text(0.5, 0.01, description, wrap=True, horizontalalignment='center', fontsize=8)
-    
-    # Render the Bloch sphere
     b.render()
-    
     return fig_to_base64(fig)
 
 
@@ -93,25 +74,23 @@ def complex_to_json(obj):
         return int(obj)
     return obj
 
-# --- NEW: Function to convert Unix timestamp to local real time ---
+
 def convert_timestamp_to_realtime(timestamp, timezone='Asia/Kolkata'):
     """Converts a Unix timestamp to a human-readable local time string."""
     try:
-        # Create a timezone-aware datetime object in UTC
         dt_utc = datetime.fromtimestamp(timestamp, pytz.utc)
-        # Convert it to the desired local timezone
         local_tz = pytz.timezone(timezone)
         dt_local = dt_utc.astimezone(local_tz)
         return dt_local.strftime('%Y-%m-%d %H:%M:%S %Z')
     except Exception:
         return "Invalid Timestamp"
 
-# --- MODIFIED: Function to fetch satellite data ---
+
 def get_satellite_message():
     """Fetches real satellite data and returns detailed information."""
     API_KEY = "483GR2-T9547D-3KK4SX-5K32"  # Replace with your N2YO API key
     SAT_ID = 25544  # ISS (International Space Station)
-    LAT, LON = 16.5, 81.5 # Observer's ground station coordinates (Bhimavaram, India)
+    LAT, LON = 16.5, 81.5  # Observer's ground station coordinates (Bhimavaram, India)
     try:
         url = f"https://api.n2yo.com/rest/v1/satellite/positions/{SAT_ID}/{LAT}/{LON}/0/1/&apiKey={API_KEY}"
         resp = requests.get(url, timeout=5)
@@ -122,7 +101,6 @@ def get_satellite_message():
         lat_bit = "1" if pos["satlatitude"] >= 0 else "0"
         lon_bit = "1" if pos["satlongitude"] >= 0 else "0"
         
-        # Get additional data and convert timestamp
         timestamp = pos.get("timestamp", 0)
         real_time = convert_timestamp_to_realtime(timestamp)
         eclipsed = pos.get("eclipsed", False)
@@ -144,194 +122,280 @@ def get_satellite_message():
             "eclipsed": False,
         }
 
-# ====================================================
-# BB84 QKD Protocol
-# ====================================================
-def bb84_qkd(num_qubits=50, backend=None, eve=False):
-    if backend is None:
-        backend = AerSimulator()
 
-    alice_bits, bob_bits = [], []
-    alice_bases, bob_bases = [], []
-    bloch_pairs = []
-    qc_example = None
+# ----------------------
+# E91 QKD Implementation
 
-    for i in range(num_qubits):
-        a_bit = random.choice([0, 1])
-        a_basis = random.choice(["Z", "X"])
-        b_basis = random.choice(["Z", "X"])
-        alice_bits.append(str(a_bit))
-        alice_bases.append(a_basis)
-        bob_bases.append(b_basis)
 
-        qc = QuantumCircuit(1, 1)
+def e91_qkd(num_pairs=1000, backend=None, eve=False):
+    """
+    Correct CHSH-based E91 implementation.
+    """
 
-        # Alice prepares qubit
-        if a_bit == 1:
-            qc.x(0)
-        if a_basis == "X":
-            qc.h(0)
-        alice_state = Statevector.from_instruction(qc.copy())
+    alice_angles = [0, 45]
+    bob_angles = [22.5, -22.5]
 
-        # Eve (optional eavesdropper)
+    key_bits = []
+    key_rounds = 0
+    mismatches = 0
+
+    alice_measurements = []
+    bob_measurements = []
+
+    correlation_data = {
+        (0, 22.5): [],
+        (0, -22.5): [],
+        (45, 22.5): [],
+        (45, -22.5): []
+    }
+
+    for pair_idx in range(num_pairs):
+
+        alice_angle = random.choice(alice_angles)
+        bob_angle = random.choice(bob_angles)
+
+        theta = np.radians(alice_angle - bob_angle)
+
+        # Correct quantum correlation
+        E_theta = -np.cos(2 * theta)
+
         if eve:
-            qc.measure(0, 0)
-            qc.reset(0)
+            # Eve destroys entanglement → classical limit
+            E_theta *= 0.5
 
-        # Bob's measurement basis
-        if b_basis == "X":
-            qc.h(0)
-        qc.measure(0, 0)
+        p_same = (1 + E_theta) / 2
 
-        if qc_example is None:
-            qc_example = qc
+        if random.random() < p_same:
+            alice_bit = random.choice([0, 1])
+            bob_bit = alice_bit
+        else:
+            alice_bit = random.choice([0, 1])
+            bob_bit = 1 - alice_bit
 
-        result = backend.run(qc, shots=1).result()
-        bob_bit = list(result.get_counts().keys())[0]
-        bob_bits.append(bob_bit)
+        alice_measurements.append({
+            "angle": alice_angle,
+            "bit": str(alice_bit),
+            "pair_index": pair_idx
+        })
 
-        # --- Visualization for first two qubits ---
-        if i < 2:
-            # Bob's post-measurement state in his basis
-            qc_bob_viz = QuantumCircuit(1)
-            if bob_bit == '1':
-                qc_bob_viz.x(0)
-            if b_basis == "X":
-                qc_bob_viz.h(0)  # Convert Z-basis measurement back to X for Bloch sphere
-            bob_post_measurement_state = DensityMatrix.from_instruction(qc_bob_viz)
+        bob_measurements.append({
+            "angle": bob_angle,
+            "bit": str(bob_bit),
+            "pair_index": pair_idx
+        })
 
-            bloch_pairs.append({
-                "alice": plot_qubit_bloch(alice_state, 0, f"Alice Qubit {i+1}", f"Sends bit '{a_bit}' in basis {a_basis}"),
-                "bob": plot_qubit_bloch(bob_post_measurement_state, 0, f"Bob Qubit {i+1}", f"Measures '{bob_bit}' in basis {b_basis}")
-            })
+        a_val = 1 if alice_bit == 1 else -1
+        b_val = 1 if bob_bit == 1 else -1
 
-    # Key extraction and error rate
-    key_bits, sifted_bits = [], []
-    mismatches, total_matches = 0, 0
-    for a_b, b_b, a_bit, b_bit in zip(alice_bases, bob_bases, alice_bits, bob_bits):
-        if a_b == b_b:
-            total_matches += 1
-            sifted_bits.append((a_bit, b_bit))
-            if a_bit == b_bit:
-                key_bits.append(a_bit)
-            else:
+        correlation_data[(alice_angle, bob_angle)].append(a_val * b_val)
+
+        # Key from (0°, 22.5°)
+        if alice_angle == 0 and bob_angle == 22.5:
+            key_rounds += 1
+            flipped_alice = alice_bit ^ 1
+            key_bits.append(str(flipped_alice))
+
+            if flipped_alice != bob_bit:
                 mismatches += 1
 
-    q_error_rate = (mismatches / total_matches) if total_matches > 0 else 1.0
+    def compute_E(values):
+        if len(values) == 0:
+            return 0
+        return sum(values) / len(values)
+
+    E_ab = compute_E(correlation_data[(0, 22.5)])
+    E_abp = compute_E(correlation_data[(0, -22.5)])
+    E_apb = compute_E(correlation_data[(45, 22.5)])
+    E_apbp = compute_E(correlation_data[(45, -22.5)])
+
+    S = E_ab + E_abp + E_apb - E_apbp
+
+    if key_rounds > 0:
+        qber = mismatches / key_rounds
+    else:
+        qber = 1.0
+
+    secure = abs(S) > 2
 
     return {
         "qkd_key": "".join(key_bits),
-        "qber": q_error_rate,
-        "sifted_bits": sifted_bits,
-        "alice_bits": alice_bits,
-        "bob_bits": bob_bits,
-        "alice_bases": alice_bases,
-        "bob_bases": bob_bases,
-        "bloch_spheres": bloch_pairs,
-        "circuit": fig_to_base64(qc_example.draw(output="mpl")) if qc_example is not None else None,
-        "secure": q_error_rate < 0.11 and not eve
+        "qber": qber,   
+        "qber_percentage": qber * 100,
+        "secure": secure,
+        "sifted_bits_count": len(key_bits),
+        "total_pairs": num_pairs,
+        "matched_basis_count": key_rounds,
+        "alice_measurements": alice_measurements,
+        "bob_measurements": bob_measurements,
+        "S_value": S,
+        "bell_violated": abs(S) > 2,
+        "eve_present": eve
     }
 
-
-# ====================================================
-# Superdense Coding Protocol
-# ====================================================
 def superdense_coding(message: str, key_bits, eve=False, backend=None):
     if backend is None:
         backend = AerSimulator()
-    if len(key_bits) < 2:
-        raise ValueError("Need at least 2 QKD bits for encryption")
 
-    encrypted = (
-        "1" if message[0] != key_bits[0] else "0",
-        "1" if message[1] != key_bits[1] else "0"
-    )
+    if not isinstance(message, str) or len(message) != 2:
+        raise ValueError("Message must be a 2-bit string like '00','01','10','11'")
 
-    qc = QuantumCircuit(2, 2)
-    
-    qc.h(0); qc.cx(0, 1); qc.barrier()
+    if key_bits and len(key_bits) >= 2:
+        kb0, kb1 = key_bits[0], key_bits[1]
+        def xor_bit(mb, kb): return '1' if mb != str(kb) else '0'
+        encrypted = (xor_bit(message[0], kb0), xor_bit(message[1], kb1))
+    else:
+        encrypted = (message[0], message[1])
 
-    if encrypted == ("0", "1"): qc.x(0)
-    elif encrypted == ("1", "0"): qc.z(0)
-    elif encrypted == ("1", "1"): qc.z(0); qc.x(0)
+    qr = QuantumRegister(2, "q")
+    cr = ClassicalRegister(2, "c")
+    qc = QuantumCircuit(qr, cr)
+    qc.h(qr[0])
+    qc.cx(qr[0], qr[1])
     qc.barrier()
-    
-    viz_qc = qc.copy()
-    viz_qc.remove_final_measurements(inplace=True)
-    state_for_viz = Statevector.from_instruction(viz_qc)
-    density = DensityMatrix(state_for_viz)
+
+    if encrypted == ("0", "1"):
+        qc.x(qr[0])
+    elif encrypted == ("1", "0"):
+        qc.z(qr[0])
+    elif encrypted == ("1", "1"):
+        qc.x(qr[0])
+        qc.z(qr[0])
+    qc.barrier()
 
     if eve:
-        qc.measure(0, 0)
+        eve_basis = random.choice(["Z", "X"])
+        if eve_basis == "X":
+            qc.h(qr[0])
+        qc.measure(qr[0], cr[0])
+        qc.reset(qr[0])
+        if random.random() < 0.5:
+            qc.x(qr[0])
+        if eve_basis == "X":
+            qc.h(qr[0])
         qc.barrier()
 
-    qc.cx(0, 1); qc.h(0); qc.barrier()
-    qc.measure([0, 1], [0, 1])
-    
-    result = backend.run(qc, shots=1024).result()
+    qc.cx(qr[0], qr[1])
+    qc.h(qr[0])
+    qc.barrier()
+    qc.measure([qr[0], qr[1]], [cr[0], cr[1]])
+
+    try:
+        viz_qc = qc.remove_final_measurements(inplace=False)
+        state_for_viz = Statevector.from_instruction(viz_qc)
+    except Exception:
+        viz_qc = QuantumCircuit(2)
+        viz_qc.h(0); viz_qc.cx(0,1)
+        state_for_viz = Statevector.from_instruction(viz_qc)
+
+    density = DensityMatrix(state_for_viz)
+    tqc = transpile(qc, backend)
+    result = backend.run(tqc, shots=1024).result()
     counts = result.get_counts()
+
+    def complex_to_json(obj):
+        if isinstance(obj, complex):
+            return {"real": float(obj.real), "imag": float(obj.imag)}
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, list):
+            return [complex_to_json(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: complex_to_json(value) for key, value in obj.items()}
+        else:
+            return obj
+
+    circuit_png = None
+    try:
+        circuit_png = fig_to_base64(qc.draw(output="mpl"))
+    except Exception:
+        circuit_png = None
 
     return {
         "encrypted_message": encrypted,
-        "entanglement_status": "Destroyed by Eve" if eve else "Entanglement established",
-        "communication_status": "Message garbled due to Eve" if eve else "Message transmitted securely",
-        "circuit": fig_to_base64(qc.draw(output="mpl")),
-        "density_matrix": complex_to_json(density.data),
+        "entanglement_status": ("Destroyed by Eve" if eve else "Entanglement OK"),
+        "communication_status": ("Garbled" if eve else "OK"),
+        "circuit_png": circuit_png,
+        "statevector": complex_to_json(state_for_viz.data.tolist()),
+        "density_matrix": complex_to_json(density.data.tolist()),
         "bloch_spheres": [
-            plot_qubit_bloch(state_for_viz, 0, "SDC Qubit 0", f"Alice's qubit after encoding '{message}'"),
-            plot_qubit_bloch(state_for_viz, 1, "SDC Qubit 1", "Bob's entangled partner qubit")
+            plot_qubit_bloch(state_for_viz, 0, "SDC Qubit 0", f"Encrypted bits {encrypted}"),
+            plot_qubit_bloch(state_for_viz, 1, "SDC Qubit 1", "Partner qubit")
         ],
         "histogram": counts
     }
 
-# ====================================================
-# Flask App and Routes
-# ====================================================
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+
 backend = AerSimulator()
 
-@app.route("/qkd", methods=["POST"])
+
+# @app.route("/qkd", methods=["POST"])
+@app.route("/api/qkd_simulation", methods=["POST", "OPTIONS"])
 def qkd_route():
+    """Generate a QKD key using E91 protocol."""
+    
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+    
     try:
-        data = request.json
-        num_qubits = int(data.get("num_qubits", 50))
+        data = request.json or {}
+        num_pairs = int(data.get("num_pairs", data.get("num_qubits", 1000)))
         eve = bool(data.get("eve", False))
-        result = bb84_qkd(num_qubits=num_qubits, backend=backend, eve=eve)
+
+        # 🔥 Call E91 only once (NO artificial key length forcing)
+        qkd_result = e91_qkd(num_pairs=num_pairs, backend=backend, eve=eve)
+
+        return jsonify({
+            "qkd_key": qkd_result["qkd_key"],
+            "qber": qkd_result["qber"],
+            "qber_percentage": qkd_result["qber_percentage"],
+            "secure": qkd_result["secure"],
+            "sifted_bits_count": qkd_result["sifted_bits_count"],
+            "total_pairs": qkd_result["total_pairs"],
+            "matched_basis_count": qkd_result["matched_basis_count"],
+            "alice_measurements": qkd_result["alice_measurements"],
+            "bob_measurements": qkd_result["bob_measurements"],
+            "S_value": qkd_result["S_value"],
+            "bell_violated": qkd_result["bell_violated"],
+            "eve_present": qkd_result["eve_present"]
+        })
+
+    except Exception as e:
+        logger.exception("QKD route failed")
+        return jsonify({"error": f"QKD route failed: {str(e)}"}), 500
+
+
+@app.route("/sdc", methods=["POST", "OPTIONS"])
+def sdc_route():
+    # Handle CORS preflight request
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+        return response
+        
+    try:
+        data = request.json or {}
+        message = data.get("message", "00")
+        key = data.get("qkd_key")
+        qkd_secure = data.get("qkd_secure", True)
+        eve = bool(data.get("eve", False))
+
+        if not qkd_secure:
+            return jsonify({"error": "QKD key compromised! Channel insecure. Restart key generation."}), 400
+        if message not in ["00","01","10","11"]:
+            return jsonify({"error": "Invalid message (must be 2-bit string)"}), 400
+        if not key:
+            return jsonify({"error": "QKD key is required (at least 2 bits)"}), 400
+
+        result = superdense_coding(message, key, eve=eve, backend=backend)
         return jsonify(result)
     except Exception as e:
-        logger.exception("QKD simulation failed")
-        return jsonify({"error": f"QKD simulation failed: {str(e)}"}), 500
+        logger.exception("SDC failed")
+        return jsonify({"error": f"Superdense coding failed: {str(e)}"}), 500
 
-# --- MODIFIED: /sdc endpoint to return all satellite data ---
-@app.route("/sdc", methods=["POST"])
-def sdc_route():
-    try:
-        data = request.json
-        qkd_key = data.get("qkd_key")
-        sdc_eve = bool(data.get("sdc_eve", False))
-
-        if not qkd_key or len(qkd_key) < 2:
-            return jsonify({"error": "A valid QKD key of at least 2 bits is required."}), 400
-
-        satellite_data = get_satellite_message()
-        message = satellite_data["binary_message"]
-
-        sdc_result = superdense_coding(message, qkd_key, eve=sdc_eve, backend=backend)
-        
-        # Combine SDC results with the full satellite data for the response
-        response_data = {
-            "sdc": sdc_result,
-            "sat_message": satellite_data["binary_message"],
-            "sat_latitude": satellite_data["latitude"],
-            "sat_longitude": satellite_data["longitude"],
-            "sat_real_time": satellite_data["real_time"],
-            "sat_eclipsed": satellite_data["eclipsed"],
-        }
-        return jsonify(response_data)
-    except Exception as e:
-        logger.exception("SDC simulation failed")
-        return jsonify({"error": f"SDC simulation failed: {str(e)}"}), 500
 @app.route("/full-simulation", methods=["POST"])
 def full_simulation_route():
     try:
@@ -341,14 +405,20 @@ def full_simulation_route():
         qkd_eve = bool(data.get("qkd_eve", False))
         sdc_eve = bool(data.get("sdc_eve", False))
 
-        # Step 1: Run QKD
-        qkd_result = bb84_qkd(num_qubits=num_qubits, backend=backend, eve=qkd_eve)
-        qkd_key = qkd_result.get("qkd_key")
+        required_length = len(message)
+        qkd_key = ""
+        qkd_result = None
+
+        while len(qkd_key) < required_length:
+            qkd_result = e91_qkd(num_pairs=num_qubits, backend=backend, eve=qkd_eve)
+            qkd_key += qkd_result.get("qkd_key", "")
+
+        qkd_key = qkd_key[:required_length]
+        qkd_result["qkd_key"] = qkd_key
 
         if not qkd_key or len(qkd_key) < 2:
             return jsonify({"error": "QKD failed to generate a secure key."}), 400
 
-        # Step 2: Run Superdense Coding using QKD key
         sdc_result = superdense_coding(message, qkd_key, eve=sdc_eve, backend=backend)
 
         return jsonify({
@@ -360,10 +430,10 @@ def full_simulation_route():
         return jsonify({"error": f"Full simulation failed: {str(e)}"}), 500
 
 
-
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({"status": "healthy", "message": "Satellite-Ground Communication Simulator Backend"})
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)

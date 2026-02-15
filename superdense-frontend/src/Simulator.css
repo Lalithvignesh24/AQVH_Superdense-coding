@@ -1,6 +1,8 @@
 /* Simulator Styles */
 .min-h-screen {
   min-height: 100vh;
+  box-sizing: border-box;
+  padding-top: 2rem;
 }
 
 .bg-slate-900 {
@@ -8,6 +10,7 @@
   position: relative;
   overflow-x: hidden;
   z-index: 10;
+  padding-top: 0; /* remove duplicate top padding here */
 }
 
 .text-white {
@@ -29,6 +32,7 @@
 .max-w-7xl {
   max-width: 90rem;
   margin: 0 auto;
+  padding-top: 2rem;
 }
 
 .mx-auto {
@@ -39,6 +43,7 @@
 /* Header Styles */
 .text-center {
   text-align: center;
+  margin-top: 1rem;
 }
 
 .mb-8 {
@@ -369,6 +374,13 @@
   gap: 2rem;
 }
 
+.results-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  transition: margin-top 0.3s, padding-top 0.3s;
+  z-index: 10;
+}
+
 /* Width Classes for Half Layout */
 .w-full {
   width: 100%;
@@ -383,6 +395,7 @@
   position: relative;
   z-index: 10;
   animation: fadeInDown 1s ease-out;
+  margin-top: 2rem;
 }
 
 .simulator-title {
@@ -750,6 +763,11 @@
   .circuit-container,
   .results-container {
     padding: 1rem;
+  }
+  
+  .results-section {
+    margin-top: 2rem;
+    padding-top: 1rem;
   }
 }
 

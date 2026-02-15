@@ -14,6 +14,10 @@ import { SimulationProvider } from './SimulationContext';
 import AircraftNavigation from './AircraftNavigation';
 import IbmCloud from './IbmCloud';
 import './index.css';
+import Blank from './Blank';
+import Comparision from './Comparision';
+import ComparisionNew from './ComparisionNew';
+import Receiver from './Receiver';
 
 export default function App() {
   return (
@@ -34,6 +38,10 @@ export default function App() {
           <Route path="/full-simulation" element={<FullSimulation />} />
           <Route path="/aircraft-navigation" element={<AircraftNavigation />} />
           <Route path="/ibm-cloud" element={<IbmCloud />} />
+          <Route path="/blank" element={<Blank />} />
+          <Route path="/comparision" element={<Comparision />} />
+          <Route path="/comparisionnew" element={<ComparisionNew />} />
+          <Route path="/receiver" element={<Receiver />} />
         </Routes>
       </SimulationProvider>
     </Router>

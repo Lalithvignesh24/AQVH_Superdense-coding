@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import Particles from './Particles';
 import './NavigationPage.css';
 
+
 export default function NavigationPage() {
   const navigate = useNavigate();
   
@@ -14,7 +15,7 @@ export default function NavigationPage() {
   };
 
   const handleIBMQuantumCloud = () => {
-    navigate('/aircraft-navigation');
+    navigate('/blank');
   };
   
   const handleBackToLanding = () => {
@@ -53,12 +54,13 @@ export default function NavigationPage() {
             {/* Testing Phase */}
             <div className="navigation-option" onClick={handleTestingPhase}>
               <span className="option-icon">🧪</span>
-              <h2 className="option-title">Testing Phase</h2>
+              <h2 className="option-title">Superdense Coding</h2>
               <p className="option-description">
-                Explore and experiment with the Superdense Coding protocol in a controlled environment
+                Explore and experiment with the Superdense Coding protocol in a Quantum Environment
               </p>
               <ul className="option-features">
                 <li>Local Qiskit Aer simulation</li>
+                <li>IBM Quantum Cloud simulation</li>
                 <li>Real-time circuit visualization</li>
                 <li>Detailed result analysis</li>
                 <li>Perfect for learning and testing</li>
@@ -66,19 +68,20 @@ export default function NavigationPage() {
             </div>
 
             {/* Application Phase */}
-            <div className="navigation-option" onClick={handleApplicationPhase}>
-              <span className="option-icon">🚀</span>
-              <h2 className="option-title">Application Phase</h2>
-              <p className="option-description">
-                Experience real quantum computing with IBM Quantum Platform backend
-              </p>
-              <ul className="option-features">
-                <li>IBM Quantum backend execution</li>
-                <li>Real quantum hardware results</li>
-                <li>Professional quantum computing</li>
-                <li>Production-ready applications</li>
-              </ul>
-            </div>
+<div className="navigation-option" onClick={handleApplicationPhase}>
+  <span className="option-icon">✈️</span>
+  <h2 className="option-title">Trajectory Prediction & Superdense Coding</h2>
+  <p className="option-description">
+    Predict aircraft trajectory and transmit securely to satellites using the Superdense Coding protocol
+  </p>
+  <ul className="option-features">
+    <li>Quantum-enhanced trajectory prediction</li>
+    <li>Superdense coding for efficient communication</li>
+    <li>Satellite-ground secure transmission</li>
+    <li>Real-time restricted airspace alerts</li>
+  </ul>
+</div>
+
 
             {/* IBM Quantum Cloud Phase */}
             <div className="navigation-option" onClick={handleIBMQuantumCloud}>

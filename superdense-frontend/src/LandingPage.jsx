@@ -30,10 +30,8 @@ export default function LandingPage() {
         <div className="landing-container">
           {/* Hero Section */}
           <section className="hero-section">
-            <h1 className="hero-title">Superdense Coding Simulator</h1>
-            <p className="hero-subtitle">
-              Experience the power of quantum communication through interactive simulations
-            </p>
+            <h1 className="hero-title">Decoding The Superdense Coding</h1>
+            
             <p className="hero-description">
               Discover how quantum entanglement enables the transmission of two classical bits 
               using just one quantum bit, revolutionizing secure communication protocols.
@@ -73,33 +71,24 @@ export default function LandingPage() {
               </ul>
             </div>
 
+            {/* New Satellite Communication Card */}
             <div className="info-card">
-              <span className="info-icon">⚡</span>
-              <h3 className="info-title">Interactive Simulation</h3>
+              <span className="info-icon">🛰️</span>
+              <h3 className="info-title">Satellite Communication with SDC</h3>
               <p className="info-description">
-                Hands-on experience with real quantum computing backends
+                Experience how superdense coding enhances satellite-ground communication 
+                for aircraft trajectory prediction and monitoring
               </p>
               <ul className="info-features">
-                <li>Local Qiskit Aer simulation</li>
-                <li>IBM Quantum Platform integration</li>
-                <li>Real-time circuit visualization</li>
-                <li>Performance comparison analysis</li>
+                <li>Entangled photons generated in satellites</li>
+                <li>Aircraft trajectory data encoded into qubits</li>
+                <li>Efficient transmission of binary data</li>
+                <li>Secure satellite-to-ground communication</li>
               </ul>
             </div>
           </div>
 
           {/* Footer */}
-          <footer className="landing-footer">
-            <p className="footer-text">
-              Built with cutting-edge quantum computing technologies
-            </p>
-            <div className="footer-links">
-              <a href="#" className="footer-link">About</a>
-              <a href="#" className="footer-link">Documentation</a>
-              <a href="#" className="footer-link">GitHub</a>
-              <a href="#" className="footer-link">Contact</a>
-            </div>
-          </footer>
         </div>
       </div>
     </>

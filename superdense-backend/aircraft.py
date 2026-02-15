@@ -94,6 +94,8 @@ def load_simulated_flights():
                 "lat": float(row["lat"]),
                 "lon": float(row["lon"]),
                 "altitude": float(row["altitude"]),
+                "velocity": float(row["velocity"]),
+                "heading": float(row["heading"]),
                 "timestamp": int(row["timestamp"]),
                 "restricted": yes_no(is_in_restricted_area(float(row["lat"]), float(row["lon"])))
             })
@@ -108,8 +110,8 @@ def load_simulated_flights():
             "latitude": latest_pos["lat"],
             "longitude": latest_pos["lon"],
             "altitude": latest_pos["altitude"],
-            "velocity": flight["velocity"],
-            "heading": flight["heading"],
+            "velocity": latest_pos["velocity"],
+            "heading": latest_pos["heading"],
             "timestamps": flight["timestamps"],
             "restricted": yes_no(is_in_restricted_area(latest_pos["lat"], latest_pos["lon"])),
             "source": "simulated"  # mark as simulated
@@ -123,9 +125,8 @@ def load_simulated_flights():
 def fetch_live_flights():
     url = "https://opensky-network.org/api/states/all"
     flights = []
-    live_available = False  # Track if live flights are fetched
+    live_available = False
 
-    # Try fetching live flights
     try:
         resp = requests.get(url, timeout=10).json()
         if "states" in resp and resp["states"]:
@@ -141,12 +142,12 @@ def fetch_live_flights():
                     "longitude": s[5],
                     "altitude": s[7],
                     "on_ground": s[8],
-                    "velocity": s[9],   # in m/s
-                    "heading": s[10],   # in degrees
+                    "velocity": s[9],
+                    "heading": s[10],
                 }
                 if flight["latitude"] is not None and flight["longitude"] is not None:
                     flight["restricted"] = yes_no(is_in_restricted_area(flight["latitude"], flight["longitude"]))
-                    flight["source"] = "live"  # mark as live
+                    flight["source"] = "live"
                     flights.append(flight)
     except Exception as e:
         print("❌ Error fetching live states:", e)
@@ -154,7 +155,6 @@ def fetch_live_flights():
     if not live_available:
         print("⚠️ Live flights are not available. Only simulated flights will be returned.")
 
-    # Always include simulated flights
     simulated = load_simulated_flights()
     for s in simulated:
         if not any(f["icao24"] == s["icao24"] for f in flights):
@@ -172,15 +172,18 @@ def fetch_flight_track(icao24):
     try:
         resp = requests.get(url, timeout=10).json()
         if "path" in resp:
-            path = [{"lat": p[1], "lon": p[2], "altitude": p[3] or 0, "timestamp": p[0],
-                     "restricted": yes_no(is_in_restricted_area(p[1], p[2]))} 
-                    for p in resp["path"] if p[1] is not None and p[2] is not None]
+            path = [{
+                "lat": p[1], "lon": p[2], "altitude": p[3] or 0,
+                "timestamp": p[0],
+                "velocity": None,  # OpenSky track API does not return velocity
+                "heading": None,
+                "restricted": yes_no(is_in_restricted_area(p[1], p[2]))
+            } for p in resp["path"] if p[1] is not None and p[2] is not None]
             if path:
                 return path
     except Exception as e:
         print("❌ Error fetching track:", e)
 
-    # fallback → simulated flights
     simulated_flights = load_simulated_flights()
     flight = next((f for f in simulated_flights if f["icao24"] == icao24), None)
     if flight:
@@ -220,6 +223,7 @@ def predict_trajectory(flight, steps=10, interval=60):
     predictions = []
     R = 6371e3
     heading_rad = math.radians(heading)
+    start_time = int(time.time())
 
     for step in range(steps):
         distance = vel * interval * (step + 1)
@@ -243,7 +247,9 @@ def predict_trajectory(flight, steps=10, interval=60):
             "lat": new_lat_deg,
             "lon": new_lon_deg,
             "altitude": flight["altitude"],
-            "time_sec": (step + 1) * interval,
+            "velocity": vel,
+            "heading": heading,
+            "timestamp": start_time + (step + 1) * interval,
             "restricted": yes_no(is_in_restricted_area(new_lat_deg, new_lon_deg))
         })
 

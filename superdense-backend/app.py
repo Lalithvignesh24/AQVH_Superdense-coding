@@ -5,8 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import matplotlib
 import matplotlib.pyplot as plt
-
-# --- Qiskit Imports ---
+from dotenv import load_dotenv
 print("Checkpoint 1: Importing Qiskit libraries...")
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit_aer import AerSimulator
@@ -15,27 +14,18 @@ from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit.visualization import plot_histogram
 print("Checkpoint 2: Qiskit libraries imported successfully.")
 
-# =============================================================================
-#  CONFIGURATION
-# =============================================================================
 matplotlib.use('Agg')
 
-# --- Flask App Initialization ---
 app = Flask(__name__)
 CORS(app)
+load_dotenv()
 
-# =============================================================================
-#  HELPER FUNCTION: Convert Matplotlib figure to Base64 PNG
-# =============================================================================
 def fig_to_base64(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight')
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-# =============================================================================
-#  LOCAL SIMULATION LOGIC
-# =============================================================================
 def run_local_simulation(message: str, shots: int = 1024):
     print("--- Running Local Simulation ---")
     q = QuantumRegister(2, 'q')
@@ -70,16 +60,14 @@ def run_local_simulation(message: str, shots: int = 1024):
         "histogram_image_b64": fig_to_base64(hist_fig),
     }
 
-# =============================================================================
-#  IBM QUANTUM PLATFORM LOGIC
-# =============================================================================
+
 def run_ibm_simulation(message: str, shots: int = 1024):
     print("--- Running IBM Simulation ---")
     try:
-        IBM_QUANTUM_TOKEN = os.getenv("IBM_QUANTUM_TOKEN", "hGpCNlr8B_Az6hu_r1j3m514ap-xpYmOcPv8CoixCTRV")
-        IBM_INSTANCE = os.getenv("IBM_INSTANCE", "crn:v1:bluemix:public:quantum-computing:us-east:a/e85b9e1fcce04a34a2f8b4874fe29ffb:aec89adb-4b7b-4228-b827-68281995d5ee::")
+        IBM_QUANTUM_TOKEN = os.getenv("IBM_TOKEN","")
+        IBM_INSTANCE = os.getenv("IBM_INSTANCE")
 
-        service = QiskitRuntimeService(channel="ibm_quantum_platform",
+        service = QiskitRuntimeService(channel="ibm_cloud",
                                        token=IBM_QUANTUM_TOKEN,
                                        instance=IBM_INSTANCE)
         backend = service.least_busy(simulator=False, operational=True)
@@ -107,10 +95,8 @@ def run_ibm_simulation(message: str, shots: int = 1024):
     res = job.result()
     pub = res[0]
 
-    # Raw counts from backend
     counts_raw = getattr(pub.data, c.name).get_counts()
 
-    # Fix endian (reverse keys like local)
     counts = {'00': 0, '01': 0, '10': 0, '11': 0}
     for k, v in counts_raw.items():
         counts[k[::-1]] += v
@@ -126,9 +112,7 @@ def run_ibm_simulation(message: str, shots: int = 1024):
         "histogram_image_b64": fig_to_base64(hist_fig),
     }
 
-# =============================================================================
-#  API ENDPOINT
-# =============================================================================
+
 @app.route('/api/run_simulation', methods=['POST'])
 def run_simulation_endpoint():
     try:
@@ -151,9 +135,7 @@ def run_simulation_endpoint():
     except Exception as e:
         return jsonify({"error": f"Unexpected server error: {str(e)}"}), 500
 
-# =============================================================================
-#  RUN THE APP
-# =============================================================================
+
 if __name__ == '__main__':
     print("Starting Flask server...")
-    app.run(debug=False, port=5000)
+    app.run(debug=False, port=5009)
