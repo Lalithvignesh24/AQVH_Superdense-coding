@@ -1,273 +1,234 @@
-# Satellite-Ground Secure Communication Simulator
+# ✈️ Superdense Quantum Communication for Secure Aircraft Alerting
 
-A comprehensive quantum computing simulator that demonstrates Quantum Key Distribution (QKD) and Superdense Coding protocols for secure satellite-ground communication.
+A quantum communication project demonstrating **Superdense Coding (SDC)** and **Quantum Key Distribution (QKD)** applied to a real-world defense-inspired use case:
 
-## 🌟 Features
+> 🚨 Alerting a fighter aircraft when it is entering a restricted airspace using quantum-secured communication.
 
-- **Dual Backend System**: Separate testing and application phases
-- **QKD Simulation**: BB84 protocol implementation with Eve detection
-- **Superdense Coding**: 2-bit message transmission using entangled qubits
-- **Full End-to-End Simulation**: Complete satellite-ground communication flow
-- **Interactive UI**: Modern React frontend with real-time visualizations
-- **Quantum Visualizations**: Circuit diagrams, Bloch spheres, and density matrices
+This project proves that **2 classical bits can be transmitted using only 1 qubit** via entanglement and integrates aircraft path prediction with quantum communication.
+
+---
+
+## 🧠 Project Objective
+
+- Demonstrate Superdense Coding (2 classical bits via 1 qubit)
+- Implement entanglement-based QKD concepts by E91 protocol
+- Apply quantum communication to aircraft restricted-zone alerting
+- Execute circuits on:
+  - Local Qiskit simulator
+  - IBM Quantum hardware (IBM Cloud)
+
+---
 
 ## 🏗️ Project Structure
 
 ```
-SuperDensee/
+SUPERDENSE_QUANTUM/
+│
 ├── superdense-backend/
-│   ├── app.py              # Testing Phase Backend (Port 5000)
-│   ├── application.py      # Application Phase Backend (Port 5001)
-│   └── requirements.txt    # Python Dependencies
+│   ├── aircraft.py
+│   ├── sender.py
+│   ├── receiver.py
+│   ├── errorcorrection.py
+│   ├── compare.py
+│   ├── ibm_cloud.py
+│   ├── app.py
+│   ├── application.py
+│   ├── simulated_flights.csv
+│   ├── requirements.txt
+│   └── .env
+│
 ├── superdense-frontend/
 │   ├── src/
-│   │   ├── App.jsx         # Main Router
-│   │   ├── NavigationPage.jsx
-│   │   ├── QKDSimulation.jsx
 │   │   ├── SuperdenseCoding.jsx
+│   │   ├── QKDSimulation.jsx
+│   │   ├── AircraftNavigation.jsx
 │   │   ├── FullSimulation.jsx
-│   │   ├── Simulator.jsx   # Testing Phase
-│   │   └── config.js       # Backend Configuration
-│   ├── package.json        # Node.js Dependencies
+│   │   └── Other UI Components
+│   ├── package.json
 │   └── vite.config.js
-├── start_backends.bat      # Windows Backend Starter
+│
 └── README.md
 ```
 
-## 🚀 Quick Start
 
-### Prerequisites
+# 🚀 Installation & Setup
 
-- **Python 3.8+** with pip
-- **Node.js 16+** with npm
-- **Git**
+## 1️⃣ Clone Repository
 
-### Backend Setup
-
-1. **Navigate to backend directory:**
-   ```bash
-   cd superdense-backend
-   ```
-
-2. **Create virtual environment:**
-   ```bash
-   python -m venv venv
-   ```
-
-3. **Activate virtual environment:**
-   ```bash
-   # Windows
-   venv\Scripts\activate
-   
-   # Linux/Mac
-   source venv/bin/activate
-   ```
-
-4. **Install Python dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Start both backends:**
-   ```bash
-   # Option 1: Use the batch file (Windows)
-   start_backends.bat
-   
-   # Option 2: Manual start (two separate terminals)
-   # Terminal 1 - Testing Phase (Port 5000)
-   python app.py
-   
-   # Terminal 2 - Application Phase (Port 5001)
-   python application.py
-   ```
-
-### Frontend Setup
-
-1. **Navigate to frontend directory:**
-   ```bash
-   cd superdense-frontend
-   ```
-
-2. **Install Node.js dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Start development server:**
-   ```bash
-   npm run dev
-   ```
-
-4. **Open in browser:**
-   ```
-   http://localhost:5173
-   ```
-
-## 🔧 Backend Configuration
-
-### Testing Phase (`app.py` - Port 5000)
-- **Purpose**: Local and IBM Quantum simulations
-- **Endpoints**:
-  - `POST /api/run_simulation` - Run superdense coding simulation
-  - `GET /api/health` - Health check
-
-### Application Phase (`application.py` - Port 5001)
-- **Purpose**: Full satellite-ground communication simulator
-- **Endpoints**:
-  - `POST /qkd` - BB84 QKD simulation
-  - `POST /sdc` - Superdense coding simulation
-  - `POST /full-simulation` - End-to-end simulation
-  - `GET /health` - Health check
-
-## 🎯 Usage Guide
-
-### 1. Navigation
-- Visit `http://localhost:5173/navigation`
-- Choose between "Testing Phase" and "Application Phase"
-
-### 2. Testing Phase
-- **Local Simulation**: Run superdense coding on local quantum simulator
-- **IBM Simulation**: Run on IBM Quantum hardware (requires API token)
-
-### 3. Application Phase
-- **QKD Simulation**: Generate quantum keys using BB84 protocol
-- **Superdense Coding**: Encode and transmit 2-bit messages
-- **Full Simulation**: Complete end-to-end communication flow
-
-## 📊 Features by Page
-
-### QKD Simulation
-- Select number of qubit pairs (10, 50, 100)
-- Toggle Eve presence for security testing
-- View QKD key, QBER, and measurement comparisons
-- Interactive Bloch sphere visualizations
-
-### Superdense Coding
-- Input 2-bit messages (00, 01, 10, 11)
-- Real-time encryption using QKD keys
-- Circuit diagrams and measurement histograms
-- Density matrix visualization
-
-### Full Simulation
-- Step-by-step simulation cards
-- QKD key generation and validation
-- Message encryption and transmission
-- Final decryption and verification
-
-## 🛠️ Development
-
-### Backend Development
 ```bash
-cd superdense-backend
-# Activate virtual environment
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Linux/Mac
-
-# Install development dependencies
-pip install pytest requests
-
-# Run tests
-pytest
+git clone https://github.com/Lalithvignesh24/AQVH_Superdense-coding.git"
+cd AQVH_Superdense-coding
 ```
 
-### Frontend Development
+---
+
+# 🐍 Backend Setup (Python)
+
+## Step 1: Navigate to backend
+
+```bash
+cd superdense-backend
+```
+
+## Step 2: Create virtual environment
+
+```bash
+python3 -m venv venv
+```
+
+## Step 3: Activate environment
+
+### Mac / Linux
+```bash
+source venv/bin/activate
+```
+
+### Windows
+```bash
+venv\Scripts\activate
+```
+
+## Step 4: Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# ▶️ Running Backend Files
+
+You can run backend modules individually:
+
+```bash
+python3 aircraft.py
+python3 sender.py
+python3 receiver.py
+python3 errorcorrection.py
+python3 compare.py
+python3 ibm_cloud.py
+python3 app.py
+python3 application.py
+```
+
+For complete integrated workflow:
+
+```bash
+python3 application.py
+```
+
+---
+
+# ☁️ Running on IBM Quantum Hardware
+
+1. Create an account at:
+   https://quantum.ibm.com/
+
+2. Copy your IBM Quantum API token.
+
+3. Add it to `.env` file:
+
+```
+IBM_TOKEN= your_api_token_here
+IBM_INSTANCE= crn_token_here
+MONGO_USER= username_here
+MONGO_PASSWORD= password_here
+MONGO_CLUSTER_URL= api_key_here
+OPENSKY_URL= _api_key_here
+
+
+```
+
+4. Run:
+
+```bash
+python3 ibm_cloud.py
+```
+
+This executes the quantum circuit on real IBM Quantum hardware.
+
+---
+
+# 💻 Frontend Setup (React + Vite)
+
 ```bash
 cd superdense-frontend
 npm install
 npm run dev
-npm run build
-npm run lint
 ```
 
-## 🔍 Troubleshooting
+Open in browser:
 
-### Common Issues
-
-1. **Port Already in Use**
-   ```bash
-   # Check what's using the port
-   netstat -ano | findstr :5000
-   netstat -ano | findstr :5001
-   
-   # Kill the process
-   taskkill /PID <process_id> /F
-   ```
-
-2. **CORS Errors**
-   - Ensure both backends are running
-   - Check that CORS is enabled in both Flask apps
-   - Verify frontend is connecting to correct backend URLs
-
-3. **Qiskit Import Errors**
-   ```bash
-   pip install --upgrade qiskit
-   pip install --upgrade qiskit-aer
-   ```
-
-4. **Frontend Build Issues**
-   ```bash
-   npm cache clean --force
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-## 📝 API Documentation
-
-### Testing Phase Endpoints
-
-#### `POST /api/run_simulation`
-```json
-{
-  "message": "01",
-  "shots": 1024,
-  "backend": "local" | "ibm"
-}
+```
+http://localhost:5173
 ```
 
-### Application Phase Endpoints
+---
 
-#### `POST /qkd`
-```json
-{
-  "num_qubits": 50,
-  "eve": false
-}
+# 🧪 Local Simulator vs IBM Quantum
+
+| Feature | Local Simulator | IBM Quantum |
+|----------|----------------|-------------|
+| Speed | Fast | Slower (Queue-based) |
+| Noise | Ideal | Real Quantum Noise |
+| Real Hardware | No | Yes |
+| Educational | Yes | Yes |
+
+---
+
+# 📊 Technologies Used
+
+- Python
+- Qiskit
+- IBM Quantum Cloud
+- Flask
+- React.js
+- Vite
+
+---
+
+# 🔐 Security Aspects
+
+- Entanglement-based secure communication
+- QKD-inspired key validation
+- Measurement comparison
+- Basic quantum error handling
+
+---
+
+# 🎯 Key Learning Outcomes
+
+- Implementation of Superdense Coding
+- Entanglement-based communication
+- Running circuits on real quantum hardware
+- Integrating classical aircraft prediction with quantum transmission
+- Secure alert communication model
+
+---
+
+# 🛠 Troubleshooting
+
+### Qiskit Installation Issue
+
+```bash
+pip install --upgrade qiskit qiskit-aer qiskit-ibm-runtime
 ```
 
-#### `POST /sdc`
-```json
-{
-  "message": "01",
-  "qkd_key": "1010",
-  "eve": false
-}
-```
+### IBM Backend Connection Issue
 
-#### `POST /full-simulation`
-```json
-{
-  "message": "01",
-  "num_qubits": 50
-}
-```
+- Verify API token
+- Check internet connection
+- Ensure backend is available on IBM dashboard
 
-## 🤝 Contributing
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+# 👨‍💻 Author
 
-## 📄 License
+Quantum Communication Defense Simulation Project  
+Superdense Coding + QKD + Aircraft Path Prediction  
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
 
-## 🙏 Acknowledgments
+# 📜 License
 
-- **Qiskit Team** for the quantum computing framework
-- **IBM Quantum** for providing quantum hardware access
-- **React Team** for the frontend framework
-- **Vite Team** for the build tool
-
-**Happy Quantum Computing! 🚀**
+This project is for educational and research purposes only.
